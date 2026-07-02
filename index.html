@@ -1,2 +1,100 @@
-### I am 😎 
-[’I'm a star’](www.aliceadams.pixieset.com)
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой Карманный ИИ</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #1e1e2e; display: flex; justify-content: center; align-items: center; height: 100vh; color: #cdd6f4; }
+        .chat-container { width: 100%; max-width: 500px; height: 80vh; background: #313244; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+        .chat-header { background: #11111b; padding: 15px; text-align: center; font-size: 1.2rem; font-weight: bold; color: #a6e3a1; }
+        .messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 80%; padding: 10px 14px; border-radius: 8px; line-height: 1.4; font-size: 0.95rem; word-break: break-word; }
+        .user-msg { background: #89b4fa; color: #11111b; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .ai-msg { background: #45475a; color: #cdd6f4; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .chat-input-area { display: flex; padding: 10px; background: #181825; gap: 10px; }
+        input { flex: 1; padding: 12px; border: none; border-radius: 6px; background: #313244; color: #cdd6f4; font-size: 1rem; }
+        input:focus { outline: 2px solid #89b4fa; }
+        button { background: #a6e3a1; color: #11111b; border: none; padding: 0 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #94e2d5; }
+        button:disabled { background: #585b70; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">🤖 Мой Карманный ИИ</div>
+    <div class="messages" id="chatBox">
+        <div class="message ai-msg">Привет! Я твой локальный ИИ-ассистент. Задай мне любой вопрос!</div>
+    </div>
+    <div class="chat-input-area">
+        <input type="text" id="userInput" placeholder="Напишите сообщение..." autocomplete="off">
+        <button id="sendBtn" onclick="sendMessage()">Отправить</button>
+    </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById('chatBox');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // Функция отправки сообщения по нажатию Enter
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        // Добавляем сообщение пользователя на экран
+        appendMessage(text, 'user-msg');
+        userInput.value = '';
+        
+        // Блокируем интерфейс во время ответа
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+
+        // Создаем заглушку для ответа ИИ
+        const aiMessageDiv = appendMessage('Думаю...', 'ai-msg');
+
+        try {
+            // Запрос к публичному API DuckDuckGo AI (работает без ключей)
+            const response = await fetch('https://duckduckgo.com', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [{ role: 'user', content: text }]
+                })
+            });
+
+            if (!response.ok) throw new Error('Ошибка сети');
+
+            const data = await response.json();
+            aiMessageDiv.innerText = data.choices[0].message.content;
+        } catch (error) {
+            // Если стороннее API временно недоступно, используем простую встроенную логику
+            aiMessageDiv.innerText = "Извини, не удалось связаться с сервером ИИ. Но я могу ответить тебе эхом: " + text;
+        } finally {
+            // Разблокируем ввод
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+
+    function appendMessage(text, className) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', className);
+        messageDiv.innerText = text;
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        return messageDiv;
+    }
+</script>
+
+</body>
+</html>
