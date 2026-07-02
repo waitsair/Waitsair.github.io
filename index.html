@@ -13,6 +13,7 @@
         .message { max-width: 80%; padding: 10px 14px; border-radius: 8px; line-height: 1.4; font-size: 0.95rem; word-break: break-word; }
         .user-msg { background: #89b4fa; color: #11111b; align-self: flex-end; border-bottom-right-radius: 2px; }
         .ai-msg { background: #45475a; color: #cdd6f4; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .status-msg { background: #eba0ac; color: #11111b; align-self: center; font-size: 0.85rem; border-radius: 4px; }
         .chat-input-area { display: flex; padding: 10px; background: #181825; gap: 10px; }
         input { flex: 1; padding: 12px; border: none; border-radius: 6px; background: #313244; color: #cdd6f4; font-size: 1rem; }
         input:focus { outline: 2px solid #89b4fa; }
@@ -24,69 +25,74 @@
 <body>
 
 <div class="chat-container">
-    <div class="chat-header">🤖 Мой Карманный ИИ</div>
+    <div class="chat-header">🤖 Локальный ИИ (Без серверов)</div>
     <div class="messages" id="chatBox">
-        <div class="message ai-msg">Привет! Теперь всё исправлено. Задай мне любой вопрос!</div>
+        <div class="message ai-msg" id="initMessage">Пожалуйста, подождите. Загружаю языковую модель прямо в ваш браузер...</div>
     </div>
     <div class="chat-input-area">
-        <input type="text" id="userInput" placeholder="Напишите сообщение..." autocomplete="off">
-        <button id="sendBtn" onclick="sendMessage()">Отправить</button>
+        <input type="text" id="userInput" placeholder="Напишите сообщение..." autocomplete="off" disabled>
+        <button id="sendBtn" onclick="sendMessage()" disabled>Отправить</button>
     </div>
 </div>
 
-<script>
+<!-- Подключаем библиотеку для запуска ИИ прямо в браузере -->
+<script type="module">
+    import { pipeline } from 'https://jsdelivr.net';
+
     const chatBox = document.getElementById('chatBox');
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
+    const initMessage = document.getElementById('initMessage');
 
-    // Отправка по нажатию кнопки Enter
+    let generator = null;
+
+    // Инициализация ИИ при загрузке страницы
+    async function initAI() {
+        try {
+            // Загружаем самую маленькую и быструю текстовую модель (около 15 МБ), которая стабильно работает на любом ПК и телефоне
+            generator = await pipeline('text2text-generation', 'Xenova/LaMini-Flan-T5-78M');
+            
+            initMessage.innerText = "ИИ успешно загружен в ваш браузер и готов к работе без внешних серверов! Напишите что-нибудь (лучше на английском, так как модель сверхлегкая).";
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+        } catch (e) {
+            initMessage.innerText = "Не удалось загрузить локальную модель. Проверьте соединение с интернетом для первой загрузки скриптов.";
+            console.error(e);
+        }
+    }
+
+    // Запускаем инициализацию автоматически
+    initAI();
+
     userInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') sendMessage();
+        if (e.key === 'Enter') window.sendMessage();
     });
 
-    async function sendMessage() {
+    window.sendMessage = async function() {
         const text = userInput.value.trim();
-        if (!text) return;
+        if (!text || !generator) return;
 
-        // Отображаем сообщение пользователя
         appendMessage(text, 'user-msg');
         userInput.value = '';
         
-        // Блокируем ввод на время запроса
         userInput.disabled = true;
         sendBtn.disabled = true;
 
-        const aiMessageDiv = appendMessage('Думаю...', 'ai-msg');
+        const aiMessageDiv = appendMessage('Генерирую ответ силами вашего процессора...', 'ai-msg');
 
         try {
-            // Запрос к публичной нейросети Qwen на Hugging Face (работает без CORS ошибок)
-            const response = await fetch('https://huggingface.co', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    inputs: `<|im_start|>user\nОтвечай только на русском языке. Кратко ответь на вопрос: ${text}<|im_end|>\n<|im_start|>assistant\n`,
-                    parameters: { max_new_tokens: 300, temperature: 0.7 }
-                })
+            // Генерируем текст локально без отправки fetch-запросов на сторонние сайты
+            const output = await generator(text, {
+                max_new_tokens: 100,
+                temperature: 0.7,
+                repetition_penalty: 1.2
             });
 
-            if (!response.ok) throw new Error('Ошибка API');
-
-            const data = await response.json();
-            
-            // Извлекаем чистый текст ответа нейросети
-            let fullText = data[0]?.generated_text || "";
-            let reply = fullText.split('<|im_start|>assistant\n')[1] || fullText;
-            
-            // Если текст обрезался тегами, убираем их
-            reply = reply.replace(/<\|im_end\|>/g, '').trim();
-
-            aiMessageDiv.innerText = reply || "Я получил пустой ответ. Хм...";
-
+            aiMessageDiv.innerText = output[0].generated_text || "Не удалось разобрать ответ.";
         } catch (error) {
             console.error(error);
-            aiMessageDiv.innerText = "Ошибка подключения к ИИ. Попробуйте отправить еще раз.";
+            aiMessageDiv.innerText = "Произошла локальная ошибка вычислений.";
         } finally {
-            // Возвращаем активность элементам формы
             userInput.disabled = false;
             sendBtn.disabled = false;
             userInput.focus();
