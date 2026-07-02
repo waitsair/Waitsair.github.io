@@ -26,7 +26,7 @@
 <div class="chat-container">
     <div class="chat-header">🤖 Мой Карманный ИИ</div>
     <div class="messages" id="chatBox">
-        <div class="message ai-msg">Привет! Я твой локальный ИИ-ассистент. Задай мне любой вопрос!</div>
+        <div class="message ai-msg">Привет! Теперь всё исправлено. Задай мне любой вопрос!</div>
     </div>
     <div class="chat-input-area">
         <input type="text" id="userInput" placeholder="Напишите сообщение..." autocomplete="off">
@@ -39,7 +39,7 @@
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
 
-    // Функция отправки сообщения по нажатию Enter
+    // Отправка по нажатию кнопки Enter
     userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
@@ -48,37 +48,45 @@
         const text = userInput.value.trim();
         if (!text) return;
 
-        // Добавляем сообщение пользователя на экран
+        // Отображаем сообщение пользователя
         appendMessage(text, 'user-msg');
         userInput.value = '';
         
-        // Блокируем интерфейс во время ответа
+        // Блокируем ввод на время запроса
         userInput.disabled = true;
         sendBtn.disabled = true;
 
-        // Создаем заглушку для ответа ИИ
         const aiMessageDiv = appendMessage('Думаю...', 'ai-msg');
 
         try {
-            // Запрос к публичному API DuckDuckGo AI (работает без ключей)
-            const response = await fetch('https://duckduckgo.com', {
+            // Запрос к публичной нейросети Qwen на Hugging Face (работает без CORS ошибок)
+            const response = await fetch('https://huggingface.co', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    model: 'gpt-4o-mini',
-                    messages: [{ role: 'user', content: text }]
+                    inputs: `<|im_start|>user\nОтвечай только на русском языке. Кратко ответь на вопрос: ${text}<|im_end|>\n<|im_start|>assistant\n`,
+                    parameters: { max_new_tokens: 300, temperature: 0.7 }
                 })
             });
 
-            if (!response.ok) throw new Error('Ошибка сети');
+            if (!response.ok) throw new Error('Ошибка API');
 
             const data = await response.json();
-            aiMessageDiv.innerText = data.choices[0].message.content;
+            
+            // Извлекаем чистый текст ответа нейросети
+            let fullText = data[0]?.generated_text || "";
+            let reply = fullText.split('<|im_start|>assistant\n')[1] || fullText;
+            
+            // Если текст обрезался тегами, убираем их
+            reply = reply.replace(/<\|im_end\|>/g, '').trim();
+
+            aiMessageDiv.innerText = reply || "Я получил пустой ответ. Хм...";
+
         } catch (error) {
-            // Если стороннее API временно недоступно, используем простую встроенную логику
-            aiMessageDiv.innerText = "Извини, не удалось связаться с сервером ИИ. Но я могу ответить тебе эхом: " + text;
+            console.error(error);
+            aiMessageDiv.innerText = "Ошибка подключения к ИИ. Попробуйте отправить еще раз.";
         } finally {
-            // Разблокируем ввод
+            // Возвращаем активность элементам формы
             userInput.disabled = false;
             sendBtn.disabled = false;
             userInput.focus();
